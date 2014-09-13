@@ -1,0 +1,337 @@
+import sys
+import shlex
+
+from prettytable import PrettyTable
+
+
+
+
+
+def find_first(non_terminal, long_list, non_terminals, first_dict):
+
+	first = []
+	
+	for list1 in long_list:
+		for i in xrange(len(list1)):
+			if list1[i] == ">" and list1[i+1] == " ":
+				index = i+2
+				
+		##--------------------- Rule 1 implemented!-------------------- 
+		if index < len(list1) and list1[index] not in non_terminals:
+			if list1[index] == 'i' and list1[index + 1] == 'd' and list1[index + 2] == '1':
+				first.append('id1')
+				continue
+			first.append(list1[index])
+			
+		## -------------------- Rule 2 implemented!---------------------	
+		else:
+			for i in xrange(index, len(list1)):
+				if list1[i] not in non_terminals:
+					first.append(list1[i])
+				elif '^' in first_dict[list1[i]]:
+					first = list(set(first) | set(first_dict[list1[i]]))	
+				elif len(first_dict[list1[i]]) == 0: 	
+					pass	
+				else:
+					for item in first_dict[list1[i]]:
+						if item not in first:
+							first.append(item) 
+					break		
+		
+	print "First of", non_terminal, ":", first
+	return first
+
+
+
+
+
+def find_follow(non_terminal, productions, non_terminals, first_dict, follow_dict, start): 
+	follow = []
+	##-------------------------- Rule 1 implemented!-------------------------
+	if non_terminal == start:
+		#print "element appended: $" 
+		follow.append('$')
+		
+	##-------------------------- Rule 2 implemented! -------------------------
+	for key, value in productions.iteritems():
+		for list1 in value:
+			if non_terminal in list1:
+				index = []
+				
+				for i in xrange(len(list1)):
+					if list1[i] == non_terminal:
+						index.append(i)
+			
+				for j in index:
+					if j == 0:
+						continue
+					else:
+						if (j + 1) < len(list1):
+							if list1[j+1] not in non_terminals and list1[j+1] != ' ':
+								follow.append(list1[j+1])
+							else:	
+								if not first_dict[list1[j+1]]:
+									continue
+								
+								if '^' in first_dict[list1[j+1]]:
+									for item1 in follow_dict[list1[0]]:
+										if item1 != ' ':
+											follow.append(item1)	
+									
+								for item in first_dict[list1[j+1]]:
+									if item != '^' and item != ' ':
+										follow.append(item)
+						else:
+							if list1[j] != list1[0]:
+							
+								for item1 in follow_dict[list1[0]]:
+									if item1 != ' ':
+										follow.append(item1)
+									
+	follow = set(follow)
+		
+	print "Follow of", non_terminal, ":", list(follow)
+	return list(follow)
+
+
+
+
+
+def parsing_table(non_terminals_list, terminals_list, productions_dict, first_dict, follow_dict):
+	total_terminals = len(terminals_list)
+	total_non_terminals = len(non_terminals_list)
+	
+	A = [[0 for i in xrange(total_terminals + 1)] for j in xrange(total_non_terminals + 1)]
+	A[0][0] = 'non-terminals'
+	
+	global hashdict1 
+	hashdict1= {}
+	global hashdict2
+	hashdict2 = {}
+	
+	for i in xrange(total_terminals):
+		hashdict1[terminals_list[i]] = i+1
+		
+	for j in xrange(total_non_terminals):
+		hashdict2[non_terminals_list[j]] = j+1	
+		
+	for x in xrange(1, total_terminals + 1):
+		A[0][x] = terminals_list[x - 1]
+		
+	for y in xrange(1, total_non_terminals + 1):
+		A[y][0] = non_terminals_list[y - 1]
+		
+			
+	##----------------- Rule 1, 2, 3 implemented!---------------------------
+	for key, values in productions_dict.iteritems():
+		for list1 in values:
+			nt = list1[0]
+			a = first_dict[nt]
+			b = follow_dict[nt]
+			
+			if a:
+				for x in xrange(len(a)):
+					if a[x] != '^':
+						if not A[hashdict2[nt]][hashdict1[a[x]]]:
+							A[hashdict2[nt]][hashdict1[a[x]]] = list1 
+					elif a[x] == '^':
+						for y in xrange(len(b)):
+							A[hashdict2[nt]][hashdict1[b[y]]] = list1
+	A[total_non_terminals][total_terminals] = 'G -> id1'				
+	##--------------------Rule 4 implemented!-------------------------------
+	for i in xrange(total_non_terminals + 1):
+		for j in xrange(total_terminals + 1):
+			if not A[i][j]:
+				A[i][j] = 'Error'
+	
+	##----------------------Output in form of Table ------------------------		
+	xz = PrettyTable([x for x in A[0]])
+	xz.align["non-terminals"] = "l" # Left align city names
+	xz.padding_width = 1 # One space between column edges and contents (default)		
+	
+	for i in xrange(1, total_non_terminals + 1):				
+		xz.add_row([x for x in A[i]])
+	
+	print xz
+		
+	return A
+
+
+
+
+
+def validate_input(input_list, A_matrix, start, non_terminals_list):
+	stack = ['$']  
+	stack.append(start)
+	
+	state1 = []
+	state2 = []
+	state3 = []
+	
+	
+	vlaag = 1
+	print "\n\nSteps of parsing the input:\n"
+	#print "\nStack\t\t\tInput\t\t\tAction"
+		
+	
+	while vlaag:
+		#------------------- Condition 1 implemented!!-------------------
+		if stack[-1] == '$' and input_list[0] == '$':
+			print stack, "\t\t\t", input_list, "\t\t\tAccepted!!"
+			return True
+		
+		elif stack[-1] == input_list[0]:
+			stack.pop()
+			del input_list[0]	
+			print stack, "\t\t\t", input_list, "\t\t\tMatch"
+			
+		elif stack[-1] in non_terminals_list:
+			temp1 = A_matrix[hashdict2[stack[-1]]][hashdict1[input_list[0]]]
+			
+			print stack, "\t\t\t", input_list, "\t\t\t", temp1
+			
+			if temp1 != 'Error' :
+				action = temp1
+				for i in xrange(len(temp1)):
+					if temp1[i] == '>':
+						index = i + 2
+			
+				temp2 = temp1[index:]
+				temp3 = temp2[::-1]
+				
+				
+				#print "Temps:", temp2, temp3
+				
+				if temp3 != '^' and temp3 != '1di':
+					stack.pop()
+					for item in temp3:
+						stack.append(item)	
+					print stack, "\t\t\t", input_list, "\t\t\t", temp1
+			 		
+				elif temp3 == '1di':
+					stack.pop()
+					stack.append('id1')
+					print stack, "\t\t\t", input_list, "\t\t\t", temp1
+				
+				elif temp3 == '^':
+					stack.pop()
+					print stack, "\t\t\t", input_list, "\t\t\t", temp1
+			else:
+				print stack, "\t\t\t", input_list, "\t\t\tInput Rejected!!" 
+				return False
+	return True
+	
+	
+	
+	
+	
+def main():
+	##--------------Change Input string here------------------------
+	input_string = "id1 + id1 * id1"
+	input_ind = list(shlex.shlex(input_string))
+	input_ind.append('$')
+	
+	productions = {}
+	master_list = []
+	new_list = []
+	non_terminals = []
+	
+	grammar = open('grammar.txt', 'r')
+	
+	for row in grammar:
+		if '->' in row:
+			#new production
+			if len(new_list) == 0:
+				start_state = row[0]
+				non_terminals.append(row[0])
+				new_list = []
+				new_list.append(row.rstrip('\n'))
+			else:
+				master_list.append(new_list)
+				del new_list
+				new_list = []
+				new_list.append(row.rstrip('\n'))
+				non_terminals.append(row[0])
+				
+		elif '|' in row:
+			new_list.append(row.rstrip('\n\|'))	
+	
+	master_list.append(new_list)	
+	#print master_list
+	print "Start state:", start_state, "\n"
+	print "Non-terminals:", non_terminals, "\n"
+	
+	
+	##----------------------Finding productions from Grammar-----------------------
+	for x in xrange(len(non_terminals)):
+		productions[non_terminals[x]] = []
+		
+	for x in xrange(len(master_list)):
+		for y in xrange(len(master_list[x])):
+			master_list[x][y] = [s.replace('|', '') for s in master_list[x][y]]
+			master_list[x][y] = ''.join(master_list[x][y])
+			productions[non_terminals[x]].append(master_list[x][y]) 
+
+	
+	for non_terminal in non_terminals:
+		for i in xrange(len(productions[non_terminal])):
+			if '->' not in productions[non_terminal][i]:
+				list1 = productions[non_terminal][i]
+				productions[non_terminal].pop(i)
+				
+				string = non_terminal + ' ->' + list1
+				list1 = string
+				productions[non_terminal].append(list1)
+	
+	print "Productions", productions, "\n"
+	
+	
+	##-------------------------- First and Follow functions:-----------------------
+	first = {}
+	follow = {}
+	
+	for nt in non_terminals[::-1]:
+		first[nt] = find_first(nt, productions[nt], non_terminals, first)
+	print "\n"
+	
+	for nt1 in non_terminals:
+		follow[nt1] = find_follow(nt1, productions, non_terminals, first, follow, start_state)
+	print "\n"	
+	
+	## Parsing Table
+	
+	## --------------------------Finding Terminals --------------------------------
+	set1 = []
+	for key, value in first.iteritems():
+		set1 = list(set(set1) | set(value))
+		
+	set2 = []
+	for key, value in follow.iteritems():
+		set2 = list(set(set2) | set(value))
+		
+	terminals = list(set(set1) | set(set2))
+	
+	terminals = [value for value in terminals if value != '^']
+	
+	print "Terminals:", terminals, "\n"
+	
+	
+	##--------------------------- LL(1) table -------------------------------------
+	
+	A = parsing_table(non_terminals, terminals, productions, first, follow)
+	
+	##---------------------------Validating Input ---------------------------------
+	
+	boolean = validate_input(input_ind, A, start_state, non_terminals)
+	
+	if boolean == True:
+		print "\nInput accepted!! \n"
+	else:
+		print "\nInvalid Input!! \n"
+	return 2
+
+
+
+
+if __name__ == "__main__":
+	sys.exit(main())
